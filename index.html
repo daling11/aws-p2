@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>AWS S3 File Upload</title>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1.12.min.js"></script>
+    <p> Input your voice by clicking the record button </p>
+   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script >
+    	$(function () {
+	// check for support (webkit only)
+	if (!('webkitSpeechRecognition' in window))
+		return;
+
+	var input = document.getElementById('input');
+	var record = document.getElementById('record');
+
+	// setup recognition
+	const talkMsg = 'Speak now';
+	// seconds to wait for more input after last
+	const patience = 5;
+	var prefix = '';
+	var isSentence;
+	var recognizing = false;
+	var timeout;
+	var oldPlaceholder = null;
+	var recognition = new webkitSpeechRecognition();
+	recognition.continuous = true;
+	recognition.interimResults = true;
+
+	function restartTimer() {
+		timeout = setTimeout(function () {
+			recognition.stop();
+		}, patience * 1000);
+	}
+
+	recognition.onstart = function () {
+		oldPlaceholder = input.placeholder;
+		input.placeholder = talkMsg;
+		recognizing = true;
+		restartTimer();
+	};
+
+	recognition.onend = function () {
+		recognizing = false;
+		clearTimeout(timeout);
+		if (oldPlaceholder !== null)
+			input.placeholder = oldPlaceholder;
+	};
+
+	recognition.onresult = function (event) {
+		clearTimeout(timeout);
+
+		// get SpeechRecognitionResultList object
+		var resultList = event.results;
+
+		// go through each SpeechRecognitionResult object in the list
+		var finalTranscript = '';
+		var interimTranscript = '';
+		for (var i = event.resultIndex; i < resultList.length; ++i) {
+			var result = resultList[i];
+			// get this result's first SpeechRecognitionAlternative object
+			var firstAlternative = result[0];
+			if (result.isFinal) {
+				finalTranscript = firstAlternative.transcript;
+			} else {
+				interimTranscript += firstAlternative.transcript;
+			}
+		}
+		// capitalize transcript if start of new sentence
+		var transcript = finalTranscript || interimTranscript;
+		transcript = !prefix || isSentence ? capitalize(transcript) : transcript;
+
+		// append transcript to cached input value
+		input.value = prefix + transcript;
+
+		restartTimer();
+	};
+
+	record.addEventListener('click', function (event) {
+		event.preventDefault();
+
+		// stop and exit if already going
+		if (recognizing) {
+			recognition.stop();
+			return;
+		}
+
+		// Cache current input value which the new transcript will be appended to
+		var endsWithWhitespace = input.value.slice(-1).match(/\s/);
+		prefix = !input.value || endsWithWhitespace ? input.value : input.value + ' ';
+
+		// check if value ends with a sentence
+		isSentence = prefix.trim().slice(-1).match(/[\.\?\!]/);
+
+		// restart recognition
+		recognition.start();
+	}, false);
+});
+
+function capitalize(str) {
+	return str.charAt(0).toUpperCase() + str.slice(1);
+}
+    </script>
+</head>
+
+<body>
+    <input type="file" id="file-chooser" />
+    <button id="upload-button">Upload to S3</button>
+    <div id="results"></div>
+    <script type="text/javascript">
+    AWS.config.region = 'us-east-1'; // 1. Enter your region
+
+AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+        IdentityPoolId: 'us-east-1:ae3a09b4-aaaa-4b69-bb1d-5f0cb5692774' // 2. Enter your identity pool
+    });
+
+    AWS.config.credentials.get(function(err) {
+        if (err) alert(err);
+        console.log(AWS.config.credentials);
+    });
+
+    var bucketName = 'coms6998-b2'; // Enter your bucket name
+    var bucket = new AWS.S3({
+        params: {
+            Bucket: bucketName
+        }
+    });
+
+    var fileChooser = document.getElementById('file-chooser');
+    var button = document.getElementById('upload-button');
+    var results = document.getElementById('results');
+    button.addEventListener('click', function() {
+
+        var file = fileChooser.files[0];
+
+        if (file) {
+
+            results.innerHTML = '';
+            var objKey = file.name;
+            var params = {
+                Key: objKey,
+                ContentType: file.type,
+                Body: file,
+                ACL: 'public-read'
+            };
+
+            bucket.putObject(params, function(err, data) {
+                if (err) {
+                    results.innerHTML = 'ERROR: ' + err;
+                } else {
+                    listObjs();
+                }
+            });
+        } else {
+            results.innerHTML = 'Nothing to upload.';
+        }
+    }, false);
+    function listObjs() {
+        var prefix = 'testing';
+        bucket.listObjects({
+            Prefix: prefix
+        }, function(err, data) {
+            if (err) {
+                results.innerHTML = 'ERROR: ' + err;
+            } else {
+                var objKeys = "";
+                data.Contents.forEach(function(obj) {
+                    objKeys += obj.Key + "<br>";
+                });
+                results.innerHTML = objKeys;
+            }
+        });
+    }
+    </script>
+</body>
+
+
+<head>
+    <title>Search photo</title>
+</head>
+<script>
+        // define the callAPI function that takes a first name and last name as parameters
+        var callAPI = (query)=>{
+            // instantiate a headers object
+            var myHeaders = new Headers();
+            // add content type header to object
+            myHeaders.append("Content-Type", "application/json");
+            // using built in JSON utility package turn object to string and store in a variable
+            var raw = JSON.stringify({"query":query});
+            // create a JSON object with parameters for API call and store in a variable
+            var requestOptions = {
+                method: 'POST',
+                headers: myHeaders,
+                body: raw,
+                redirect: 'follow'
+            };
+            // make API call with parameters and use promises to get response
+            fetch("https://4pptmphdci.execute-api.us-east-1.amazonaws.com/HW3/search", requestOptions)
+            .then(response => response.text())
+            .catch(error => console.log('error', error));
+        }
+  </script>
+
+<!-- This is the start of transcribe -->
+
+<body>
+<form id="form1" method="post"> 
+  <div>
+    <label for="name">Type what you want:</label>
+    <form action="javascript:void(0);">
+            <input id="input" type="text" name="query" placeholder="Click the record button" />
+            <button id="record">record</button>
+        </form>
+  </div>
+</div>
+<button type="button" onclick="callAPI(document.getElementsByName('query')[0].value)">Search</button>
+</form>
+</body>
+
+<!-- This is the end of transcribe -->
+
+ <script>
+// Data constructs and initialization.
+//
+
+// **DO THIS**:
+//   Replace BUCKET_NAME with the bucket name.
+//
+var albumBucketName = 'hw3-display-album';
+
+// **DO THIS**:
+//   Replace this block of code with the sample code located at:
+//   Cognito -- Manage Identity Pools -- [identity_pool_name] -- Sample Code -- JavaScript
+//
+// Initialize the Amazon Cognito credentials provider
+AWS.config.region = 'us-east-1'; // Region
+AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+    IdentityPoolId: 'us-east-1:ae3a09b4-aaaa-4b69-bb1d-5f0cb5692774',
+});
+
+// Create a new service object
+var s3 = new AWS.S3({
+  apiVersion: '2006-03-01',
+  params: {Bucket: albumBucketName}
+});
+
+// A utility function to create HTML.
+function getHtml(template) {
+  return template.join('\n');
+}
+
+
+//
+// Functions
+//
+
+// List the photo albums that exist in the bucket.
+function listAlbums() {
+  s3.listObjects({Delimiter: '/'}, function(err, data) {
+    if (err) {
+      return alert('There was an error listing your albums: ' + err.message);
+    } else {
+      var albums = data.CommonPrefixes.map(function(commonPrefix) {
+        var prefix = commonPrefix.Prefix;
+        var albumName = decodeURIComponent(prefix.replace('/', ''));
+        return getHtml([
+          '<li>',
+            '<button style="margin:5px;" onclick="viewAlbum(\'' + albumName + '\')">',
+              albumName,
+            '</button>',
+          '</li>'
+        ]);
+      });
+      var message = albums.length ?
+        getHtml([
+          '<p>Click on an album name to view it.</p>',
+        ]) :
+        '<p>You do not have any albums. Please Create album.';
+      var htmlTemplate = [
+        '<h2>Albums</h2>',
+        message,
+        '<ul>',
+          getHtml(albums),
+        '</ul>',
+      ]
+      document.getElementById('viewer').innerHTML = getHtml(htmlTemplate);
+    }
+  });
+}
+
+// Show the photos that exist in an album.
+function viewAlbum(albumName) {
+  var albumPhotosKey = encodeURIComponent(albumName) + '/';
+  s3.listObjects({Prefix: albumPhotosKey}, function(err, data) {
+    if (err) {
+      return alert('There was an error viewing your album: ' + err.message);
+    }
+    // 'this' references the AWS.Response instance that represents the response
+    var href = this.request.httpRequest.endpoint.href;
+    var bucketUrl = href + albumBucketName + '/';
+
+    var photos = data.Contents.map(function(photo) {
+      var photoKey = photo.Key;
+      var photoUrl = bucketUrl + encodeURIComponent(photoKey);
+      console.log("url is: ", photoUrl)
+      return getHtml([
+        '<span>',
+          '<div>',
+            '<br/>',
+            '<img " src="' + photoUrl + '"/>',
+          '</div>',
+          '<div>',
+            '<span>',
+              photoKey.replace(albumPhotosKey, ''),
+            '</span>',
+          '</div>',
+        '</span>',
+      ]);
+    });
+    var message = photos.length ?
+      '<p>The following photos are present.</p>' :
+      '<p>There are no photos in this album.</p>';
+    var htmlTemplate = [
+      '<div>',
+        '<button onclick="listAlbums()">',
+          'Back To Albums',
+        '</button>',
+      '</div>',
+      '<h2>',
+        'Album: ' + albumName,
+      '</h2>',
+      message,
+      '<div>',
+        getHtml(photos),
+      '</div>',
+      '<h2>',
+        'End of Album: ' + albumName,
+      '</h2>',
+      '<div>',
+        '<button onclick="listAlbums()">',
+          'Back To Albums',
+        '</button>',
+      '</div>',
+    ]
+    document.getElementById('viewer').innerHTML = getHtml(htmlTemplate);
+    // document.getElementsByTagName('img')[0].setAttribute('style', 'display:none;');
+  });
+}
+</script>
+
+<head>
+    <!-- **DO THIS**: -->
+    <!--   Replace SDK_VERSION_NUMBER with the current SDK version number -->
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-SDK_VERSION_NUMBER.js"></script>
+    <script src="./PhotoViewer.js"></script>
+    <script>listAlbums();</script>
+  </head>
+  <body>
+    <h1>Photo Album Viewer</h1>
+    <div id="viewer" />
+  </body>
+</html>
